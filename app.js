@@ -88,21 +88,20 @@ const DB = {
   },
 };
 
-// ============ 行情数据 (新浪API script标签) ============
+// ============ 行情数据 (腾讯API + 东方财富搜索) ============
 const Market = {
-  // 新浪代码格式
-  toSinaCode(code, market) {
+  // 腾讯代码格式
+  toQtCode(code, market) {
     if (market === 'HK') return 'hk' + String(code).padStart(5, '0');
-    if (market === 'US') return 'gb_' + String(code).toLowerCase();
+    if (market === 'US') return 'us' + code;
     return (code[0] === '6' || code[0] === '5') ? 'sh' + code : 'sz' + code;
   },
-  // 通过script标签加载新浪行情（设置全局变量 hq_str_xxx）
+  // script标签加载（腾讯API设置全局变量 v_xxx）
   _loadScript(url) {
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = url;
-      s.charset = 'gbk';
-      s.onload = () => { s.remove(); resolve(); };
+      s.onload = () => { setTimeout(() => { s.remove(); resolve(); }, 50); };
       s.onerror = () => { s.remove(); reject(new Error('加载失败')); };
       document.body.appendChild(s);
       setTimeout(() => { if (document.body.contains(s)) { s.remove(); reject(new Error('超时')); } }, 8000);
@@ -110,54 +109,76 @@ const Market = {
   },
   async getQuotes(stocks) {
     if (!stocks.length) return [];
-    const sinaCodes = stocks.map(s => this.toSinaCode(s.code, s.market));
-    const url = 'https://hq.sinajs.cn/list=' + sinaCodes.join(',');
+    const qtCodes = stocks.map(s => this.toQtCode(s.code, s.market));
+    const url = 'https://qt.gtimg.cn/q=' + qtCodes.join(',');
     try {
       await this._loadScript(url);
       const results = [];
       for (let i = 0; i < stocks.length; i++) {
-        const sc = sinaCodes[i];
-        const raw = window['hq_str_' + sc];
+        const qc = qtCodes[i];
+        const raw = window['v_' + qc];
         if (!raw) continue;
-        const parts = raw.split(',');
-        const stock = stocks[i];
-        if (stock.market === 'HK') {
-          // 港股: data[1]=中文名, data[6]=现价, data[7]=涨跌额, data[8]=涨跌幅
-          results.push({
-            code: stock.code,
-            name: parts[1] || stock.name,
-            price: parseFloat(parts[6]) || 0,
-            change_pct: parseFloat(parts[8]) || 0,
-          });
-        } else {
-          // A股: data[0]=名称, data[3]=现价, data[2]=昨收
-          const price = parseFloat(parts[3]) || 0;
-          const yesterday = parseFloat(parts[2]) || 0;
-          const changePct = yesterday > 0 ? ((price - yesterday) / yesterday * 100) : 0;
-          results.push({
-            code: stock.code,
-            name: parts[0] || stock.name,
-            price: price,
-            change_pct: changePct,
-          });
-        }
+        const parts = raw.split('~');
+        // 腾讯格式: [1]=名称, [3]=现价, [4]=昨收
+        const price = parseFloat(parts[3]) || 0;
+        const yesterday = parseFloat(parts[4]) || 0;
+        const changePct = yesterday > 0 ? ((price - yesterday) / yesterday * 100) : 0;
+        results.push({
+          code: stocks[i].code,
+          name: parts[1] || stocks[i].name,
+          price: price,
+          change_pct: changePct,
+        });
       }
       return results;
     } catch (e) { console.error('行情获取失败:', e); return []; }
   },
   async search(keyword) {
+    if (!keyword || keyword.length < 1) return [];
     const url = 'https://searchapi.eastmoney.com/api/suggest/get?input=' + encodeURIComponent(keyword) + '&type=14&count=10';
+    // 先尝试 fetch
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data && data.QuotationCodeTable && data.QuotationCodeTable.Data) {
+        return data.QuotationCodeTable.Data
+          .filter(item => item.MktNum === 1 || item.MktNum === 0 || item.MktNum === 116)
+          .map(item => ({ code: item.Code, name: item.Name, market: item.MktNum === 116 ? 'HK' : 'A' }));
+      }
+    } catch (e) { console.log('fetch搜索失败,尝试JSONP'); }
+    // 再尝试 JSONP
     try {
       const data = await jsonp(url);
-      if (!data || !data.QuotationCodeTable || !data.QuotationCodeTable.Data) return [];
-      return data.QuotationCodeTable.Data
-        .filter(item => item.MktNum === 1 || item.MktNum === 0 || item.MktNum === 116)
-        .map(item => ({
-          code: item.Code,
-          name: item.Name,
-          market: item.MktNum === 116 ? 'HK' : 'A',
-        }));
-    } catch (e) { console.error('搜索失败:', e); return []; }
+      if (data && data.QuotationCodeTable && data.QuotationCodeTable.Data) {
+        return data.QuotationCodeTable.Data
+          .filter(item => item.MktNum === 1 || item.MktNum === 0 || item.MktNum === 116)
+          .map(item => ({ code: item.Code, name: item.Name, market: item.MktNum === 116 ? 'HK' : 'A' }));
+      }
+    } catch (e) { console.log('JSONP搜索失败,使用本地列表'); }
+    // 本地兜底
+    const popular = [
+      { code: '600519', name: '贵州茅台', market: 'A' },
+      { code: '000858', name: '五粮液', market: 'A' },
+      { code: '601318', name: '中国平安', market: 'A' },
+      { code: '600036', name: '招商银行', market: 'A' },
+      { code: '000001', name: '平安银行', market: 'A' },
+      { code: '600276', name: '恒瑞医药', market: 'A' },
+      { code: '000333', name: '美的集团', market: 'A' },
+      { code: '002594', name: '比亚迪', market: 'A' },
+      { code: '600031', name: '三一重工', market: 'A' },
+      { code: '601012', name: '隆基绿能', market: 'A' },
+      { code: '600900', name: '长江电力', market: 'A' },
+      { code: '601398', name: '工商银行', market: 'A' },
+      { code: '601166', name: '兴业银行', market: 'A' },
+      { code: '600030', name: '中信证券', market: 'A' },
+      { code: '000725', name: '京东方A', market: 'A' },
+      { code: '300750', name: '宁德时代', market: 'A' },
+      { code: '00700', name: '腾讯控股', market: 'HK' },
+      { code: '09988', name: '阿里巴巴', market: 'HK' },
+      { code: '02318', name: '中国平安(HK)', market: 'HK' },
+      { code: '00388', name: '港交所', market: 'HK' },
+    ];
+    return popular.filter(s => s.name.includes(keyword) || s.code.includes(keyword));
   },
 };
 
@@ -324,6 +345,19 @@ const Calc = {
   },
   async deleteTransaction(id) {
     await DB.del('transactions', id);
+  },
+  // 账户管理
+  async addAccount(data) {
+    return await DB.add('accounts', data);
+  },
+  async updateAccount(data) {
+    await DB.put('accounts', data);
+  },
+  async deleteAccount(id) {
+    // 删除账户的所有交易
+    const txns = (await DB.getAll('transactions')).filter(t => t.account_id === id);
+    for (const t of txns) await DB.del('transactions', t.id);
+    await DB.del('accounts', id);
   },
 };
 
