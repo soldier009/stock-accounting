@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="theme-color" content="#1989fa" />
+<link rel="manifest" href="manifest.json" />
+<title>股票记账</title>
+<script src="https://unpkg.com/vue@3.4/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/echarts@5.5/dist/echarts.min.js"></script>
+<style>
+:root{--primary:#1989fa;--up:#ee0a24;--down:#07c160;--bg:#f7f8fa;--card:#fff;--text:#323233;--t2:#646566;--t3:#969799;--border:#ebedf0}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;font-size:14px;color:var(--text);background:var(--bg);overflow:hidden}
+#app{height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;background:var(--bg);position:relative}
+.page{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.page-inner{padding:12px;padding-bottom:70px}
+.navbar{display:flex;align-items:center;justify-content:space-between;height:44px;background:var(--card);position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border)}
+.navbar-title{font-size:16px;font-weight:600}
+.navbar-btn{padding:4px 12px;color:var(--primary);font-size:14px;cursor:pointer}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
+.card-title{font-size:16px;font-weight:600;margin-bottom:12px}
+.up{color:var(--up)!important}.down{color:var(--down)!important}
+.tabbar{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;height:56px;background:var(--card);display:flex;border-top:1px solid var(--border);z-index:100}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--t3);transition:.2s}
+.tab-item.active{color:var(--primary)}
+.tab-icon{font-size:20px;margin-bottom:2px}.tab-label{font-size:11px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #f2f3f5}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.gi{text-align:center}.gl{font-size:12px;color:var(--t3);margin-bottom:4px}.gv{font-size:14px;font-weight:600}
+.nv-sum{display:flex;justify-content:space-between;margin-bottom:12px}
+.sl{font-size:12px;color:var(--t3)}.sv{font-size:16px;font-weight:600}
+.chart{width:100%;height:200px}
+.ptabs{display:flex;gap:4px;margin-top:12px;overflow-x:auto}
+.pt{padding:5px 12px;border-radius:14px;font-size:12px;color:var(--t2);white-space:nowrap;cursor:pointer;background:#f2f3f5}
+.pt.active{background:#e8f3ff;color:var(--primary);font-weight:500}
+.alloc-item{margin-bottom:14px}
+.ah{display:flex;justify-content:space-between;margin-bottom:4px}
+.sn{font-size:14px;font-weight:500}.sv2{font-size:12px;color:var(--t2)}
+.bar{height:6px;background:#f2f3f5;border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .3s}
+.ap{margin-top:4px;font-size:12px}
+.h-item{padding:12px 0;border-bottom:1px solid #f2f3f5}.h-item:last-child{border:none}
+.h-main{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.h-info{display:flex;align-items:center;gap:6px}
+.sc{font-size:11px;color:var(--t3);background:#f2f3f5;padding:2px 6px;border-radius:4px}
+.h-det{display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
+.dr{text-align:center}.dl{font-size:10px;color:var(--t3);display:block}.dv{font-size:12px;font-weight:500}
+.acc-item{display:flex;justify-content:space-between;align-items:center;padding:12px;background:#f7f8fa;border-radius:8px;margin-bottom:8px}
+.acc-name{font-size:15px;font-weight:500}.acc-broker{font-size:12px;color:var(--t3);margin-top:2px}
+.bal-l{font-size:12px;color:var(--t3)}.bal-v{font-size:16px;font-weight:600}
+.cal-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.month-l{font-size:16px;font-weight:600}.nav-b{cursor:pointer;padding:4px 8px;font-size:18px;color:var(--primary)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wd{text-align:center;font-size:12px;color:var(--t3);padding:6px 0}
+.cal-cell{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px}
+.cal-cell.empty{visibility:hidden}.cal-cell.today{box-shadow:inset 0 0 0 2px var(--primary)}
+.dn{font-size:13px}.dp{font-size:10px}
+.dd-sum{display:flex;justify-content:space-around;margin-bottom:12px}
+.dd-l{font-size:12px;color:var(--t3);margin-bottom:4px;text-align:center}.dd-v{font-size:20px;font-weight:700;text-align:center}
+.ev-title{font-size:14px;font-weight:600;margin:12px 0 8px}
+.ev-item{padding:10px;background:#f7f8fa;border-radius:8px;margin-bottom:8px}
+.ev-h{display:flex;justify-content:space-between;font-weight:600;margin-bottom:6px}
+.ev-d{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px;color:var(--t2)}
+.empty-tip{text-align:center;color:var(--t3);padding:20px;font-size:13px}
+.cg{margin-bottom:12px;border-radius:8px;overflow:hidden}
+.ci{display:flex;align-items:center;padding:12px 14px;background:var(--card);border-bottom:1px solid var(--border);cursor:pointer}.ci:last-child{border:none}
+.ci-icon{margin-right:10px;font-size:16px}.ci-title{flex:1;font-size:14px}.ci-val{font-size:13px;color:var(--t3);margin-right:6px}.ci-arrow{color:#c8c9cc}
+.about{padding:8px 0;color:var(--t2);font-size:13px;line-height:1.6}
+.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.75);color:#fff;padding:10px 16px;border-radius:8px;z-index:9999;font-size:14px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;padding:16px;padding-bottom:env(safe-area-inset-bottom)}
+.sheet-title{font-size:16px;font-weight:600;margin-bottom:16px;text-align:center}
+.form-row{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #f2f3f5}
+.form-label{width:80px;font-size:14px;flex-shrink:0}
+.form-input{flex:1;border:none;outline:none;font-size:14px;background:transparent;width:100%}
+.form-select{flex:1;border:none;outline:none;font-size:14px;background:transparent;width:100%;appearance:none}
+.type-tabs{display:flex;gap:8px;margin-bottom:12px}
+.type-tab{flex:1;text-align:center;padding:8px;border-radius:8px;font-size:14px;cursor:pointer;background:#f2f3f5;color:var(--t2)}
+.type-tab.active{background:var(--primary);color:#fff}
+.fee-info{margin-top:12px;padding:12px;background:#f7f8fa;border-radius:8px}
+.fee-row{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:var(--t2)}
+.fee-row.total{border-top:1px solid var(--border);padding-top:8px;margin-top:4px;font-weight:600;color:var(--text)}
+.btn-primary{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin-top:16px}
+.btn-danger{width:100%;padding:12px;background:#ee0a24;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin-top:8px}
+.search-box{position:relative;margin-bottom:12px}
+.search-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none}
+.search-results{max-height:300px;overflow-y:auto}
+.sr-item{padding:12px;border-bottom:1px solid #f2f3f5;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.sr-item:hover{background:#f7f8fa}
+.sr-name{font-size:14px;font-weight:500}.sr-code{font-size:12px;color:var(--t3)}
+.fab{position:fixed;right:20px;bottom:72px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(102,126,234,.4);cursor:pointer;z-index:99;font-size:24px;border:none;max-width:480px;margin:0 auto}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 总览 -->
+  <div class="page" v-show="tab===0">
+    <div class="navbar"><div class="navbar-title">总览</div><div class="navbar-btn" @click="refresh">⟳</div></div>
+    <div class="page-inner">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><div style="font-size:13px;color:var(--t3);margin-bottom:4px">总资产</div><div style="font-size:28px;font-weight:700" :class="overview.total_pnl>=0?'up':'down'">¥{{ fmt(overview.total_assets) }}</div></div>
+        </div>
+        <div class="grid4">
+          <div class="gi"><div class="gl">成本</div><div class="gv">¥{{ fmt(overview.total_cost) }}</div></div>
+          <div class="gi"><div class="gl">盈亏</div><div class="gv" :class="overview.total_pnl>=0?'up':'down'">{{ overview.total_pnl>=0?'+':'' }}{{ fmt(overview.total_pnl) }}</div></div>
+          <div class="gi"><div class="gl">盈亏率</div><div class="gv" :class="overview.pnl_pct>=0?'up':'down'">{{ overview.pnl_pct>=0?'+':'' }}{{ overview.pnl_pct?.toFixed(2) }}%</div></div>
+          <div class="gi"><div class="gl">持仓</div><div class="gv">{{ overview.holdings_count }} 只</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">净值曲线</div>
+        <div class="nv-sum"><div><div class="sl">净资产</div><div class="sv">¥{{ fmt(nvSummary.total) }}</div></div><div><div class="sl">变动</div><div class="sv" :class="nvSummary.change>=0?'up':'down'">{{ nvSummary.change>=0?'+':'' }}{{ fmt(nvSummary.change) }} ({{ nvSummary.changePct>=0?'+':'' }}{{ nvSummary.changePct.toFixed(2) }}%)</div></div></div>
+        <div class="chart" ref="navChart"></div>
+        <div class="ptabs"><div v-for="p in periods" :key="p.k" :class="['pt',{active:period===p.k}]" @click="period=p.k;loadNV()">{{ p.l }}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">持仓分布</div>
+        <div v-if="holdings.length===0" class="empty-tip">暂无持仓</div>
+        <div v-for="a in allocation" :key="a.code" class="alloc-item">
+          <div class="ah"><span class="sn">{{ a.name }}</span><span class="sv2">¥{{ fmt(a.mv) }} ({{ a.pct.toFixed(1) }}%)</span></div>
+          <div class="bar"><div class="bar-fill" :style="{width:a.pct+'%',background:a.color}"></div></div>
+          <div class="ap" :class="a.pnl>=0?'up':'down'">{{ a.pnl>=0?'+':'' }}{{ fmt(a.pnl) }} ({{ a.pnlPct>=0?'+':'' }}{{ a.pnlPct.toFixed(2) }}%)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 资产 -->
+  <div class="page" v-show="tab===1">
+    <div class="navbar"><div class="navbar-title">资产</div><div class="navbar-btn" @click="refresh">⟳</div></div>
+    <div class="page-inner">
+      <div class="card" v-if="accounts.length">
+        <div class="card-title">资金账户</div>
+        <div v-for="a in accounts" :key="a.id" class="acc-item">
+          <div><div class="acc-name">{{ a.name }}</div><div class="acc-broker">{{ a.broker||'—' }}</div></div>
+          <div><div class="bal-l">现金余额</div><div class="bal-v">¥{{ fmt(a.cash) }}</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">持仓明细</div>
+        <div v-if="holdings.length===0" class="empty-tip">暂无持仓</div>
+        <div v-for="h in holdings" :key="h.stock_code" class="h-item">
+          <div class="h-main">
+            <div class="h-info"><span class="sn">{{ h.stock_name }}</span><span class="sc">{{ h.stock_code }}</span></div>
+            <span :class="h.float_pnl>=0?'up':'down'">{{ h.float_pnl>=0?'+':'' }}{{ fmt(h.float_pnl) }}</span>
+          </div>
+          <div class="h-det">
+            <div class="dr"><span class="dl">持仓</span><span class="dv">{{ h.quantity.toFixed(0) }}股</span></div>
+            <div class="dr"><span class="dl">成本价</span><span class="dv">¥{{ fmt3(h.avg_cost) }}</span></div>
+            <div class="dr"><span class="dl">现价</span><span class="dv" :class="h.float_pnl>=0?'up':'down'">¥{{ h.current_price?.toFixed(2)||'—' }}</span></div>
+            <div class="dr"><span class="dl">市值</span><span class="dv">¥{{ fmt(h.market_value) }}</span></div>
+            <div class="dr"><span class="dl">盈亏率</span><span class="dv" :class="h.float_pnl>=0?'up':'down'">{{ h.float_pnl_pct>=0?'+':'' }}{{ h.float_pnl_pct?.toFixed(2) }}%</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">交易记录</div>
+        <div v-if="transactions.length===0" class="empty-tip">暂无交易</div>
+        <div v-for="t in transactions.slice().reverse()" :key="t.id" class="h-item">
+          <div class="h-main">
+            <div class="h-info"><span class="sn">{{ t.stock_name }}</span><span class="sc" :style="{background:t.type==='BUY'?'#e8f3ff':t.type==='SELL'?'#fff0f0':'#f0f9eb'}">{{ typeLabel(t.type) }}</span></div>
+            <span style="font-size:12px;color:var(--t3)">{{ t.trade_date }}</span>
+          </div>
+          <div class="h-det">
+            <div class="dr"><span class="dl">数量</span><span class="dv">{{ t.quantity }}</span></div>
+            <div class="dr"><span class="dl">价格</span><span class="dv">{{ t.price>0?'¥'+t.price.toFixed(2):'—' }}</span></div>
+            <div class="dr"><span class="dl">手续费</span><span class="dv">¥{{ (t.fee||0).toFixed(2) }}</span></div>
+            <div class="dr"><span class="dl">税</span><span class="dv">¥{{ (t.tax||0).toFixed(2) }}</span></div>
+            <div class="dr"><span class="dl">操作</span><span class="dv" style="color:var(--up);cursor:pointer" @click="delTxn(t.id)">删除</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分析 -->
+  <div class="page" v-show="tab===2">
+    <div class="navbar"><div class="navbar-title">分析</div></div>
+    <div class="page-inner">
+      <div class="card"><div class="card-title">成本与盈亏</div>
+        <div class="grid3">
+          <div class="gi"><div class="gl">成本</div><div class="gv">¥{{ fmt(overview.total_cost) }}</div></div>
+          <div class="gi"><div class="gl">资产总额</div><div class="gv">¥{{ fmt(overview.total_assets) }}</div></div>
+          <div class="gi"><div class="gl">浮动盈亏</div><div class="gv" :class="overview.total_pnl>=0?'up':'down'">¥{{ fmt(overview.total_pnl) }}</div></div>
+          <div class="gi"><div class="gl">盈亏率</div><div class="gv" :class="overview.pnl_pct>=0?'up':'down'">{{ overview.pnl_pct>=0?'+':'' }}{{ overview.pnl_pct?.toFixed(2) }}%</div></div>
+          <div class="gi"><div class="gl">现金</div><div class="gv">¥{{ fmt(overview.cash_balance) }}</div></div>
+          <div class="gi"><div class="gl">市值</div><div class="gv">¥{{ fmt(overview.market_value) }}</div></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-title">净值曲线</div>
+        <div class="nv-sum"><div><div class="sl">净资产</div><div class="sv">¥{{ fmt(nvSummary.total) }}</div></div><div><div class="sl">变动</div><div class="sv" :class="nvSummary.change>=0?'up':'down'">{{ nvSummary.change>=0?'+':'' }}{{ fmt(nvSummary.change) }}</div></div></div>
+        <div class="chart" ref="anaChart"></div>
+        <div class="ptabs"><div v-for="p in periods" :key="p.k" :class="['pt',{active:period===p.k}]" @click="period=p.k;loadNV()">{{ p.l }}</div></div>
+      </div>
+      <div class="card"><div class="card-title">盈亏日历</div>
+        <div class="cal-h"><span class="nav-b" @click="prevMonth">←</span><span class="month-l">{{ calY }}年{{ calM }}月</span><span class="nav-b" @click="nextMonth">→</span></div>
+        <div class="cal-grid">
+          <div v-for="d in weekdays" :key="d" class="wd">{{ d }}</div>
+          <div v-for="(c,i) in calCells" :key="i" :class="['cal-cell',{empty:!c.date,today:c.isToday}]" :style="cellBg(c)">
+            <template v-if="c.date"><span class="dn">{{ c.date.getDate() }}</span><span v-if="c.pnl" class="dp" :class="c.pnl>=0?'up':'down'">{{ c.pnl>=0?'+':'' }}{{ c.pnl.toFixed(0) }}</span></template>
+          </div>
+        </div>
+      </div>
+      <div class="card"><div class="card-title">回撤分析</div>
+        <div class="dd-sum"><div><div class="dd-l">最大回撤</div><div class="dd-v down">-{{ dd.max_drawdown_pct?.toFixed(2) }}%</div></div><div><div class="dd-l">当前回撤</div><div class="dd-v down">-{{ dd.current_drawdown_pct?.toFixed(2) }}%</div></div></div>
+        <div class="chart" ref="ddChart"></div>
+        <div v-if="dd.events&&dd.events.length"><div class="ev-title">最大回撤事件</div>
+          <div v-for="(e,i) in dd.events.slice(0,3)" :key="i" class="ev-item"><div class="ev-h"><span>#{{ i+1 }}</span><span class="down">-{{ e.drawdown_pct.toFixed(2) }}%</span></div><div class="ev-d"><div>峰值: {{ e.peak_date }}</div><div>谷底: {{ e.trough_date }}</div><div>历时: {{ e.duration_days }} 天</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div class="page" v-show="tab===3">
+    <div class="navbar"><div class="navbar-title">设置</div></div>
+    <div class="page-inner">
+      <div class="card"><div class="card-title">行情</div><div class="cg">
+        <div class="ci" @click="refresh"><span class="ci-icon">⟳</span><span class="ci-title">刷新所有行情</span><span class="ci-arrow">›</span></div>
+        <div class="ci"><span class="ci-icon">⏱</span><span class="ci-title">自动刷新</span><span class="ci-val">{{ autoRefresh?'每30秒':'关闭' }}</span></div>
+      </div></div>
+      <div class="card"><div class="card-title">数据</div><div class="cg">
+        <div class="ci" @click="exportData"><span class="ci-icon">📤</span><span class="ci-title">导出备份</span><span class="ci-arrow">›</span></div>
+        <div class="ci" @click="$refs.fileInput.click()"><span class="ci-icon">📥</span><span class="ci-title">导入备份</span><span class="ci-arrow">›</span></div>
+        <input ref="fileInput" type="file" accept=".json" style="display:none" @change="importData" />
+        <div class="ci" @click="resetData"><span class="ci-icon">🗑</span><span class="ci-title">清空数据</span><span class="ci-arrow">›</span></div>
+      </div></div>
+      <div class="card"><div class="card-title">关于</div><p class="about">股票记账 v2.0.0 (PWA)<br>纯前端应用，数据存储在本地<br>支持 A股/港股/美股 交易记录、持仓管理、盈亏分析</p></div>
+    </div>
+  </div>
+
+  <!-- 浮动添加按钮 -->
+  <button class="fab" @click="showTxnForm=true" v-show="tab===0||tab===1">+</button>
+
+  <!-- 交易表单 -->
+  <div class="overlay" v-if="showTxnForm" @click.self="showTxnForm=false">
+    <div class="sheet">
+      <div class="sheet-title">添加交易</div>
+      <div class="type-tabs">
+        <div v-for="t in types" :key="t.v" :class="['type-tab',{active:form.type===t.v}]" @click="form.type=t.v">{{ t.l }}</div>
+      </div>
+      <div class="form-row" v-if="form.type!=='DIVIDEND'&&form.type!=='BONUS'" style="cursor:pointer" @click="showSearch=true">
+        <span class="form-label">股票</span>
+        <span style="flex:1;color:var(--text)">{{ form.stock_name||'点击选择股票' }}</span>
+        <span style="color:#c8c9cc">›</span>
+      </div>
+      <div class="form-row" v-else>
+        <span class="form-label">股票</span>
+        <span style="flex:1;color:var(--text)">{{ form.stock_name||'请在资产页选择' }}</span>
+      </div>
+      <div class="form-row" v-if="form.type==='BUY'||form.type==='SELL'">
+        <span class="form-label">数量(股)</span>
+        <input class="form-input" type="number" v-model.number="form.quantity" placeholder="输入交易数量" />
+      </div>
+      <div class="form-row" v-if="form.type==='BUY'||form.type==='SELL'">
+        <span class="form-label">价格(元)</span>
+        <input class="form-input" type="number" step="0.01" v-model.number="form.price" placeholder="输入交易价格" />
+      </div>
+      <div class="form-row" v-if="form.type==='BUY'||form.type==='SELL'">
+        <span class="form-label">手续费</span>
+        <input class="form-input" type="number" step="0.01" v-model.number="form.fee" placeholder="佣金等费用" />
+      </div>
+      <div class="form-row" v-if="form.type==='SELL'">
+        <span class="form-label">印花税</span>
+        <input class="form-input" type="number" step="0.01" v-model.number="form.tax" placeholder="卖出印花税" />
+      </div>
+      <div class="form-row" v-if="form.type==='DIVIDEND'">
+        <span class="form-label">每股分红</span>
+        <input class="form-input" type="number" step="0.001" v-model.number="form.dividend_per_share" placeholder="每股分红金额" />
+      </div>
+      <div class="form-row" v-if="form.type==='DIVIDEND'">
+        <span class="form-label">持股数量</span>
+        <input class="form-input" type="number" v-model.number="form.quantity" placeholder="当前持股数量" />
+      </div>
+      <div class="form-row" v-if="form.type==='BONUS'">
+        <span class="form-label">送转比例</span>
+        <input class="form-input" type="number" step="0.01" v-model.number="form.bonus_ratio" placeholder="如0.1=每10股送1股" />
+      </div>
+      <div class="form-row">
+        <span class="form-label">日期</span>
+        <input class="form-input" type="date" v-model="form.trade_date" />
+      </div>
+      <div class="form-row">
+        <span class="form-label">备注</span>
+        <input class="form-input" type="text" v-model="form.note" placeholder="可选备注" />
+      </div>
+      <div class="fee-info" v-if="form.type==='BUY'&&form.quantity&&form.price">
+        <div class="fee-row"><span>交易金额</span><span>¥{{ (form.quantity*form.price).toFixed(2) }}</span></div>
+        <div class="fee-row"><span>手续费</span><span>¥{{ (form.fee||0).toFixed(2) }}</span></div>
+        <div class="fee-row total"><span>总支出</span><span>¥{{ (form.quantity*form.price+(form.fee||0)).toFixed(2) }}</span></div>
+      </div>
+      <div class="fee-info" v-if="form.type==='SELL'&&form.quantity&&form.price">
+        <div class="fee-row"><span>交易金额</span><span>¥{{ (form.quantity*form.price).toFixed(2) }}</span></div>
+        <div class="fee-row"><span>手续费+税</span><span>¥{{ ((form.fee||0)+(form.tax||0)).toFixed(2) }}</span></div>
+        <div class="fee-row total"><span>净收入</span><span>¥{{ (form.quantity*form.price-(form.fee||0)-(form.tax||0)).toFixed(2) }}</span></div>
+      </div>
+      <div class="fee-info" v-if="form.type==='DIVIDEND'&&form.quantity&&form.dividend_per_share">
+        <div class="fee-row total"><span>分红总额</span><span>¥{{ (form.quantity*form.dividend_per_share).toFixed(2) }}</span></div>
+      </div>
+      <button class="btn-primary" @click="saveTxn">确认添加</button>
+      <button class="btn-danger" @click="showTxnForm=false" style="background:#f2f3f5;color:var(--t2)">取消</button>
+    </div>
+  </div>
+
+  <!-- 股票搜索 -->
+  <div class="overlay" v-if="showSearch" @click.self="showSearch=false">
+    <div class="sheet">
+      <div class="sheet-title">搜索股票</div>
+      <div class="search-box"><input class="search-input" v-model="searchKw" @input="doSearch" placeholder="输入股票名称或代码" /></div>
+      <div class="search-results">
+        <div v-if="!searchResults.length&&searchKw" class="empty-tip">未找到结果</div>
+        <div v-for="r in searchResults" :key="r.code" class="sr-item" @click="pickStock(r)">
+          <span class="sr-name">{{ r.name }}</span><span class="sr-code">{{ r.code }} ({{ r.market==='HK'?'港股':'A股' }})</span>
+        </div>
+      </div>
+      <button class="btn-danger" @click="showSearch=false" style="background:#f2f3f5;color:var(--t2)">关闭</button>
+    </div>
+  </div>
+
+  <!-- TabBar -->
+  <div class="tabbar">
+    <div :class="['tab-item',{active:tab===0}]" @click="tab=0"><div class="tab-icon">📊</div><div class="tab-label">总览</div></div>
+    <div :class="['tab-item',{active:tab===1}]" @click="tab=1"><div class="tab-icon">💰</div><div class="tab-label">资产</div></div>
+    <div :class="['tab-item',{active:tab===2}]" @click="tab=2"><div class="tab-icon">📈</div><div class="tab-label">分析</div></div>
+    <div :class="['tab-item',{active:tab===3}]" @click="tab=3"><div class="tab-icon">⚙️</div><div class="tab-label">设置</div></div>
+  </div>
+  <div class="toast" v-if="toast">{{ toast }}</div>
+</div>
+<script src="app.js"></script>
+<script>
+const { createApp, ref, computed, onMounted, onUnmounted, nextTick, watch } = Vue;
+createApp({
+  setup() {
+    const tab = ref(0);
+    const toast = ref('');
+    const accounts = ref([]);
+    const holdings = ref([]);
+    const transactions = ref([]);
+    const stocks = ref([]);
+    const overview = ref({ total_assets:0, total_cost:0, total_pnl:0, pnl_pct:0, cash_balance:0, market_value:0, holdings_count:0 });
+    const nvData = ref([]);
+    const dd = ref({ max_drawdown_pct:0, current_drawdown_pct:0, events:[] });
+    const period = ref('month');
+    const calY = ref(new Date().getFullYear());
+    const calM = ref(new Date().getMonth()+1);
+    const calData = ref([]);
+    const showTxnForm = ref(false);
+    const showSearch = ref(false);
+    const searchKw = ref('');
+    const searchResults = ref([]);
+    const autoRefresh = ref(true);
+    const form = ref({ type:'BUY', stock_code:'', stock_name:'', quantity:0, price:0, fee:0, tax:0, dividend_per_share:0, bonus_ratio:0, trade_date:todayStr(), note:'' });
+    let accountId = 1;
+    const navChart = ref(null), anaChart = ref(null), ddChart = ref(null);
+    let nChart=null, aChart=null, dChart=null;
+    const periods = [{k:'week',l:'近一周'},{k:'month',l:'本月'},{k:'quarter',l:'近三月'},{k:'ytd',l:'年初至今'},{k:'year',l:'近一年'}];
+    const weekdays = ['日','一','二','三','四','五','六'];
+    const types = [{v:'BUY',l:'买入'},{v:'SELL',l:'卖出'},{v:'DIVIDEND',l:'分红'},{v:'BONUS',l:'送转'}];
+
+    function fmt(n){if(n==null||isNaN(n))return'0.00';return Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+    function fmt3(n){if(n==null||isNaN(n))return'0.000';return Number(n).toLocaleString('zh-CN',{minimumFractionDigits:3,maximumFractionDigits:3})}
+    function typeLabel(t){return {BUY:'买入',SELL:'卖出',DIVIDEND:'分红',BONUS:'送转'}[t]||t}
+    function showToast(m){toast.value=m;setTimeout(()=>toast.value='',2000)}
+
+    const nvSummary = computed(()=>{
+      if(!nvData.value.length)return{total:0,change:0,changePct:0};
+      const f=nvData.value[0],l=nvData.value[nvData.value.length-1];
+      const c=l.total_assets-f.total_assets;
+      return{total:l.total_assets,change:c,changePct:f.total_assets>0?c/f.total_assets*100:0};
+    });
+    const allocation = computed(()=>{
+      const total=holdings.value.reduce((s,h)=>s+(h.market_value||0),0);
+      const colors=['#1989fa','#ee0a24','#07c160','#ff976a','#7232dd','#00b578'];
+      return holdings.value.map((h,i)=>({code:h.stock_code,name:h.stock_name,mv:h.market_value||0,pct:total>0?(h.market_value||0)/total*100:0,pnl:h.float_pnl||0,pnlPct:h.float_pnl_pct||0,color:colors[i%colors.length]}));
+    });
+    const calCells = computed(()=>{
+      const y=calY.value,m=calM.value;
+      const fd=new Date(y,m-1,1).getDay(),dim=new Date(y,m,0).getDate();
+      const cells=[],today=new Date();
+      for(let i=0;i<fd;i++)cells.push({date:null});
+      for(let d=1;d<=dim;d++){
+        const date=new Date(y,m-1,d);
+        const dd=calData.value.find(x=>x.date===date.toISOString().slice(0,10));
+        cells.push({date,pnl:dd?.pnl||0,isToday:date.toDateString()===today.toDateString()});
+      }
+      return cells;
+    });
+    function cellBg(c){if(!c.date)return{};if(c.pnl>0)return{background:'rgba(238,10,36,.1)'};if(c.pnl<0)return{background:'rgba(7,193,96,.1)'};return{}}
+    function prevMonth(){if(calM.value===1){calM.value=12;calY.value--}else calM.value--;loadCal()}
+    function nextMonth(){if(calM.value===12){calM.value=1;calY.value++}else calM.value++;loadCal()}
+
+    async function loadAll(){
+      accounts.value = await DB.getAll('accounts');
+      if(!accounts.value.length){
+        accountId = await seedData();
+        accounts.value = await DB.getAll('accounts');
+      } else {
+        accountId = accounts.value[0].id;
+      }
+      await loadData();
+    }
+    async function loadData(){
+      stocks.value = await DB.getAll('stocks');
+      transactions.value = (await DB.getAll('transactions')).filter(t=>t.account_id===accountId);
+      holdings.value = await Calc.getHoldings(accountId);
+      overview.value = await Calc.getOverview(accountId);
+      for(const a of accounts.value) a.cash = await Calc.recalcCash(a.id);
+      await loadNV(); await loadCal(); await loadDD();
+    }
+    async function loadNV(){
+      nvData.value = await Calc.getNetValue(accountId,period.value);
+      await nextTick(); renderCharts();
+    }
+    async function loadCal(){
+      const r = await Calc.getCalendar(accountId,calY.value,calM.value);
+      calData.value = r.days;
+    }
+    async function loadDD(){
+      dd.value = await Calc.getDrawdown(accountId,period.value);
+      await nextTick(); renderDD();
+    }
+    function renderCharts(){
+      const color = nvSummary.value.change>=0?'#ee0a24':'#07c160';
+      const opt = {
+        grid:{top:10,right:10,bottom:30,left:55},
+        tooltip:{trigger:'axis'},
+        xAxis:{type:'category',data:nvData.value.map(d=>d.date),axisLine:{lineStyle:{color:'#dcdee0'}},axisLabel:{color:'#969799',fontSize:10}},
+        yAxis:{type:'value',scale:true,axisLine:{show:false},axisTick:{show:false},splitLine:{lineStyle:{color:'#f7f8fa'}},axisLabel:{color:'#969799',fontSize:10}},
+        series:[{type:'line',data:nvData.value.map(d=>d.total_assets),smooth:true,symbol:'none',lineStyle:{color,width:2},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'33'},{offset:1,color:color+'00'}]}}}]
+      };
+      if(navChart.value){if(nChart)nChart.dispose();nChart=echarts.init(navChart.value);nChart.setOption(opt)}
+      if(anaChart.value){if(aChart)aChart.dispose();aChart=echarts.init(anaChart.value);aChart.setOption(opt)}
+    }
+    function renderDD(){
+      if(!ddChart.value)return;
+      if(dChart)dChart.dispose();
+      dChart=echarts.init(ddChart.value);
+      const vals=nvData.value.map((d,i)=>{let p=nvData.value[0].total_assets;for(let j=0;j<=i;j++)if(nvData.value[j].total_assets>p)p=nvData.value[j].total_assets;return p>0?Number(((p-d.total_assets)/p*100).toFixed(2)):0});
+      dChart.setOption({grid:{top:10,right:10,bottom:30,left:55},tooltip:{trigger:'axis'},xAxis:{type:'category',data:nvData.value.map(d=>d.date),axisLine:{lineStyle:{color:'#dcdee0'}},axisLabel:{color:'#969799',fontSize:10}},yAxis:{type:'value',inverse:true,axisLine:{show:false},axisTick:{show:false},splitLine:{lineStyle:{color:'#f7f8fa'}},axisLabel:{color:'#969799',fontSize:10,formatter:'{value}%'}},series:[{type:'line',data:vals,smooth:true,symbol:'none',lineStyle:{color:'#ee0a24',width:2},areaStyle:{color:'rgba(238,10,36,.15)'}}]});
+    }
+
+    async function refresh(){
+      showToast('刷新中...');
+      const quotes = await Market.getQuotes(stocks.value);
+      for(const q of quotes){
+        const s = stocks.value.find(x=>x.code===q.code);
+        if(s){s.price=q.price;s.change_pct=q.change_pct;s.updated_at=new Date().toISOString();await DB.put('stocks',s)}
+      }
+      await loadData();
+      showToast('刷新成功');
+    }
+
+    async function doSearch(){
+      if(!searchKw.value||searchKw.value.length<1)return;
+      searchResults.value = await Market.search(searchKw.value);
+    }
+    function pickStock(r){
+      form.value.stock_code=r.code;form.value.stock_name=r.name;
+      // 确保股票在库
+      const exist=stocks.value.find(s=>s.code===r.code);
+      if(!exist){const ns={code:r.code,name:r.name,market:r.market,price:0,change_pct:0,updated_at:''};DB.add('stocks',ns).then(()=>loadAll())}
+      showSearch.value=false;
+    }
+
+    async function saveTxn(){
+      const f=form.value;
+      if(!f.stock_code){showToast('请选择股票');return}
+      if((f.type==='BUY'||f.type==='SELL')&&(!f.quantity||!f.price)){showToast('请填写数量和价格');return}
+      if(f.type==='DIVIDEND'&&(!f.quantity||!f.dividend_per_share)){showToast('请填写持股数量和分红金额');return}
+      if(f.type==='BONUS'&&!f.bonus_ratio){showToast('请填写送转比例');return}
+      const t={account_id:accountId,stock_code:f.stock_code,stock_name:f.stock_name,type:f.type,quantity:f.quantity||0,price:f.price||0,fee:f.fee||0,tax:f.tax||0,dividend_per_share:f.dividend_per_share||0,bonus_ratio:f.bonus_ratio||0,trade_date:f.trade_date,note:f.note};
+      await Calc.addTransaction(t);
+      // 确保股票在库
+      const exist=stocks.value.find(s=>s.code===f.stock_code);
+      if(!exist){await DB.add('stocks',{code:f.stock_code,name:f.stock_name,market:'A',price:0,change_pct:0,updated_at:''})}
+      showTxnForm.value=false;
+      // 重置表单
+      form.value={type:'BUY',stock_code:'',stock_name:'',quantity:0,price:0,fee:0,tax:0,dividend_per_share:0,bonus_ratio:0,trade_date:todayStr(),note:''};
+      await loadData();
+      showToast('交易已添加');
+    }
+    async function delTxn(id){
+      if(!confirm('确定删除这笔交易？'))return;
+      await Calc.deleteTransaction(id);
+      await loadData();
+      showToast('已删除');
+    }
+
+    function exportData(){
+      const data={accounts:accounts.value,stocks:stocks.value,transactions:transactions.value,exportDate:new Date().toISOString()};
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='stock_backup_'+todayStr()+'.json';a.click();
+      URL.revokeObjectURL(url);showToast('备份已导出');
+    }
+    async function importData(e){
+      const file=e.target.files[0];if(!file)return;
+      const text=await file.text();const data=JSON.parse(text);
+      if(!data.accounts||!data.transactions){showToast('文件格式错误');return}
+      await DB.clear('accounts');await DB.clear('stocks');await DB.clear('transactions');
+      for(const a of data.accounts){delete a.id;await DB.add('accounts',a)}
+      for(const s of data.stocks){delete s.id;await DB.add('stocks',s)}
+      for(const t of data.transactions){delete t.id;await DB.add('transactions',t)}
+      await loadAll();showToast('导入成功');
+    }
+    async function resetData(){
+      if(!confirm('确定清空所有数据？此操作不可恢复！'))return;
+      await DB.clear('accounts');await DB.clear('stocks');await DB.clear('transactions');
+      await loadAll();showToast('数据已清空');
+    }
+
+    let timer=null;
+    onMounted(async()=>{
+      await DB.init();
+      // 注册 Service Worker
+      if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(e=>console.log('SW注册失败:',e))}
+      await loadAll();
+      if(autoRefresh.value){timer=setInterval(refresh,30000)}
+    });
+    onUnmounted(()=>{if(timer)clearInterval(timer)});
+
+    return {tab,accounts,holdings,transactions,stocks,overview,nvData,dd,period,calY,calM,calCells,calData,showTxnForm,showSearch,searchKw,searchResults,autoRefresh,form,toast,periods,weekdays,types,nvSummary,allocation,navChart,anaChart,ddChart,fmt,fmt3,typeLabel,cellBg,prevMonth,nextMonth,refresh,doSearch,pickStock,saveTxn,delTxn,exportData,importData,resetData};
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
