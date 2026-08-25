@@ -70,8 +70,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
 .ci-icon{margin-right:10px;font-size:16px}.ci-title{flex:1;font-size:14px}.ci-val{font-size:13px;color:var(--t3);margin-right:6px}.ci-arrow{color:#c8c9cc}
 .about{padding:8px 0;color:var(--t2);font-size:13px;line-height:1.6}
 .toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.75);color:#fff;padding:10px 16px;border-radius:8px;z-index:9999;font-size:14px}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:flex-end;justify-content:center}
-.sheet{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;padding:16px;padding-bottom:env(safe-area-inset-bottom)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+.sheet{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px;padding-bottom:env(safe-area-inset-bottom)}
 .sheet-title{font-size:16px;font-weight:600;margin-bottom:16px;text-align:center}
 .form-row{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #f2f3f5}
 .form-label{width:80px;font-size:14px;flex-shrink:0}
@@ -134,10 +134,23 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
     <div class="navbar"><div class="navbar-title">资产</div><div class="navbar-btn" @click="refresh">⟳</div></div>
     <div class="page-inner">
       <div class="card" v-if="accounts.length">
-        <div class="card-title">资金账户</div>
-        <div v-for="a in accounts" :key="a.id" class="acc-item">
-          <div><div class="acc-name">{{ a.name }}</div><div class="acc-broker">{{ a.broker||'—' }}</div></div>
-          <div><div class="bal-l">现金余额</div><div class="bal-v">¥{{ fmt(a.cash) }}</div></div>
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>资金账户</span>
+          <span style="font-size:14px;color:var(--primary);cursor:pointer" @click="showAddAcc">+ 添加账户</span>
+        </div>
+        <div v-for="a in accounts" :key="a.id" class="acc-item" style="position:relative">
+          <div style="flex:1" @click="showEditAcc(a)">
+            <div class="acc-name">{{ a.name }}</div>
+            <div class="acc-broker">{{ a.broker||'—' }}</div>
+          </div>
+          <div style="text-align:right;margin-right:12px">
+            <div class="bal-l">现金余额</div>
+            <div class="bal-v">¥{{ fmt(a.cash) }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:12px;color:var(--primary);cursor:pointer" @click.stop="showEditAcc(a)">编辑</span>
+            <span style="font-size:12px;color:var(--up);cursor:pointer" @click.stop="delAcc(a.id)">删除</span>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -154,23 +167,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
             <div class="dr"><span class="dl">现价</span><span class="dv" :class="h.float_pnl>=0?'up':'down'">¥{{ h.current_price?.toFixed(2)||'—' }}</span></div>
             <div class="dr"><span class="dl">市值</span><span class="dv">¥{{ fmt(h.market_value) }}</span></div>
             <div class="dr"><span class="dl">盈亏率</span><span class="dv" :class="h.float_pnl>=0?'up':'down'">{{ h.float_pnl_pct>=0?'+':'' }}{{ h.float_pnl_pct?.toFixed(2) }}%</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">全部交易</div>
-        <div v-if="transactions.length===0" class="empty-tip">暂无交易</div>
-        <div v-for="t in transactions.slice().reverse()" :key="t.id" class="h-item">
-          <div class="h-main">
-            <div class="h-info"><span class="sn">{{ t.stock_name }}</span><span class="sc" :style="{background:t.type==='BUY'?'#e8f3ff':t.type==='SELL'?'#fff0f0':'#f0f9eb'}">{{ typeLabel(t.type) }}</span></div>
-            <span style="font-size:12px;color:var(--t3)">{{ t.trade_date }}</span>
-          </div>
-          <div class="h-det">
-            <div class="dr"><span class="dl">数量</span><span class="dv">{{ t.quantity }}</span></div>
-            <div class="dr"><span class="dl">价格</span><span class="dv">{{ t.price>0?'¥'+t.price.toFixed(2):'—' }}</span></div>
-            <div class="dr"><span class="dl">手续费</span><span class="dv">¥{{ (t.fee||0).toFixed(2) }}</span></div>
-            <div class="dr"><span class="dl">税</span><span class="dv">¥{{ (t.tax||0).toFixed(2) }}</span></div>
-            <div class="dr"><span class="dl">操作</span><span class="dv" style="color:var(--up);cursor:pointer" @click.stop="delTxn(t.id)">删除</span></div>
           </div>
         </div>
       </div>
@@ -255,7 +251,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
     <div class="page-inner">
       <div class="card"><div class="card-title">行情</div><div class="cg">
         <div class="ci" @click="refresh"><span class="ci-icon">⟳</span><span class="ci-title">刷新所有行情</span><span class="ci-arrow">›</span></div>
-        <div class="ci"><span class="ci-icon">⏱</span><span class="ci-title">自动刷新</span><span class="ci-val">{{ autoRefresh?'每30秒':'关闭' }}</span></div>
+        <div class="ci"><span class="ci-icon">⏱</span><span class="ci-title">自动刷新</span><span class="ci-val">{{ autoRefresh?'每5分钟':'关闭' }}</span></div>
       </div></div>
       <div class="card"><div class="card-title">数据</div><div class="cg">
         <div class="ci" @click="exportData"><span class="ci-icon">📤</span><span class="ci-title">导出备份</span><span class="ci-arrow">›</span></div>
@@ -340,6 +336,18 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
     </div>
   </div>
 
+  <!-- 账户管理弹窗 -->
+  <div class="overlay" v-if="showAccForm" @click.self="showAccForm=false">
+    <div class="sheet">
+      <div class="sheet-title">{{ editingAccId ? '编辑账户' : '添加账户' }}</div>
+      <div class="form-row"><span class="form-label">账户名称</span><input class="form-input" v-model="accForm.name" placeholder="如：我的账户" /></div>
+      <div class="form-row"><span class="form-label">券商</span><input class="form-input" v-model="accForm.broker" placeholder="如：华泰证券" /></div>
+      <div class="form-row"><span class="form-label">初始资金</span><input class="form-input" type="number" v-model.number="accForm.initial_cash" placeholder="如：200000" /></div>
+      <button class="btn-primary" @click="saveAcc">{{ editingAccId ? '保存修改' : '添加账户' }}</button>
+      <button class="btn-danger" @click="showAccForm=false" style="background:#f2f3f5;color:var(--t2)">取消</button>
+    </div>
+  </div>
+
   <!-- 股票搜索 -->
   <div class="overlay" v-if="showSearch" @click.self="showSearch=false">
     <div class="sheet">
@@ -389,6 +397,9 @@ createApp({
     const autoRefresh = ref(true);
     const detailStock = ref(null);
     const detailTxns = ref([]);
+    const showAccForm = ref(false);
+    const accForm = ref({ name: '', broker: '', initial_cash: 0 });
+    const editingAccId = ref(null);
     const form = ref({ type:'BUY', stock_code:'', stock_name:'', quantity:0, price:0, fee:0, tax:0, dividend_per_share:0, bonus_ratio:0, trade_date:todayStr(), note:'' });
     let accountId = 1;
     const navChart = ref(null), anaChart = ref(null), ddChart = ref(null);
@@ -548,6 +559,31 @@ createApp({
       showTxnForm.value = true;
     }
 
+    // 账户管理
+    function showAddAcc(){ accForm.value={name:'',broker:'',initial_cash:0}; editingAccId.value=null; showAccForm.value=true; }
+    function showEditAcc(a){ accForm.value={...a}; editingAccId.value=a.id; showAccForm.value=true; }
+    async function saveAcc(){
+      const f=accForm.value;
+      if(!f.name){showToast('请输入账户名称');return}
+      if(editingAccId.value){
+        const acc=await DB.get('accounts',editingAccId.value);
+        acc.name=f.name;acc.broker=f.broker;acc.initial_cash=f.initial_cash;
+        await Calc.updateAccount(acc);
+        showToast('账户已更新');
+      } else {
+        const id=await Calc.addAccount({name:f.name,broker:f.broker,initial_cash:f.initial_cash||0,created_at:todayStr()});
+        accountId=id;
+      }
+      showAccForm.value=false;
+      await loadAll();
+    }
+    async function delAcc(id){
+      if(!confirm('删除账户将同时删除该账户的所有交易记录，确定吗？'))return;
+      await Calc.deleteAccount(id);
+      await loadAll();
+      showToast('账户已删除');
+    }
+
     function exportData(){
       const data={accounts:accounts.value,stocks:stocks.value,transactions:transactions.value,exportDate:new Date().toISOString()};
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -577,11 +613,18 @@ createApp({
       // 注册 Service Worker
       if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(e=>console.log('SW注册失败:',e))}
       await loadAll();
-      if(autoRefresh.value){timer=setInterval(refresh,30000)}
+      // 5分钟自动刷新
+      if(autoRefresh.value){timer=setInterval(refresh,300000)}
     });
     onUnmounted(()=>{if(timer)clearInterval(timer)});
 
-    return {tab,accounts,holdings,transactions,stocks,overview,nvData,dd,period,calY,calM,calCells,calData,showTxnForm,showSearch,searchKw,searchResults,autoRefresh,form,toast,detailStock,detailTxns,periods,weekdays,types,nvSummary,allocation,navChart,anaChart,ddChart,fmt,fmt3,typeLabel,cellBg,prevMonth,nextMonth,refresh,doSearch,pickStock,saveTxn,delTxn,showStockDetail,addTxnForStock,exportData,importData,resetData};
+    // 弹窗打开时锁定背景滚动
+    watch([showTxnForm, showSearch, detailStock, showAccForm], ([a,b,c,d]) => {
+      const open = a || b || c || d;
+      document.body.style.overflow = open ? 'hidden' : '';
+    });
+
+    return {tab,accounts,holdings,transactions,stocks,overview,nvData,dd,period,calY,calM,calCells,calData,showTxnForm,showSearch,searchKw,searchResults,autoRefresh,form,toast,detailStock,detailTxns,showAccForm,accForm,editingAccId,periods,weekdays,types,nvSummary,allocation,navChart,anaChart,ddChart,fmt,fmt3,typeLabel,cellBg,prevMonth,nextMonth,refresh,doSearch,pickStock,saveTxn,delTxn,showStockDetail,addTxnForStock,showAddAcc,showEditAcc,saveAcc,delAcc,exportData,importData,resetData};
   }
 }).mount('#app');
 </script>
