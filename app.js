@@ -88,34 +88,70 @@ const DB = {
   },
 };
 
-// ============ 行情数据 (东方财富 JSONP) ============
+// ============ 行情数据 (新浪API script标签) ============
 const Market = {
-  getSecid(code, market) {
-    if (market === 'HK') return '116.' + String(code).padStart(5, '0');
-    if (market === 'US') return '105.' + code;
-    return (code[0] === '6' || code[0] === '5') ? '1.' + code : '0.' + code;
+  // 新浪代码格式
+  toSinaCode(code, market) {
+    if (market === 'HK') return 'hk' + String(code).padStart(5, '0');
+    if (market === 'US') return 'gb_' + String(code).toLowerCase();
+    return (code[0] === '6' || code[0] === '5') ? 'sh' + code : 'sz' + code;
+  },
+  // 通过script标签加载新浪行情（设置全局变量 hq_str_xxx）
+  _loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url;
+      s.charset = 'gbk';
+      s.onload = () => { s.remove(); resolve(); };
+      s.onerror = () => { s.remove(); reject(new Error('加载失败')); };
+      document.body.appendChild(s);
+      setTimeout(() => { if (document.body.contains(s)) { s.remove(); reject(new Error('超时')); } }, 8000);
+    });
   },
   async getQuotes(stocks) {
     if (!stocks.length) return [];
-    const secids = stocks.map(s => this.getSecid(s.code, s.market)).join(',');
-    const url = 'https://push2.eastmoney.com/api/qt/ulist.np/get?fields=f2,f3,f12,f14&secids=' + secids;
+    const sinaCodes = stocks.map(s => this.toSinaCode(s.code, s.market));
+    const url = 'https://hq.sinajs.cn/list=' + sinaCodes.join(',');
     try {
-      const data = await jsonp(url);
-      if (!data || !data.data || !data.data.diff) return [];
-      return data.data.diff.map(item => ({
-        code: item.f12,
-        name: item.f14,
-        price: item.f2 / 100,
-        change_pct: item.f3 / 100,
-      }));
+      await this._loadScript(url);
+      const results = [];
+      for (let i = 0; i < stocks.length; i++) {
+        const sc = sinaCodes[i];
+        const raw = window['hq_str_' + sc];
+        if (!raw) continue;
+        const parts = raw.split(',');
+        const stock = stocks[i];
+        if (stock.market === 'HK') {
+          // 港股: data[1]=中文名, data[6]=现价, data[7]=涨跌额, data[8]=涨跌幅
+          results.push({
+            code: stock.code,
+            name: parts[1] || stock.name,
+            price: parseFloat(parts[6]) || 0,
+            change_pct: parseFloat(parts[8]) || 0,
+          });
+        } else {
+          // A股: data[0]=名称, data[3]=现价, data[2]=昨收
+          const price = parseFloat(parts[3]) || 0;
+          const yesterday = parseFloat(parts[2]) || 0;
+          const changePct = yesterday > 0 ? ((price - yesterday) / yesterday * 100) : 0;
+          results.push({
+            code: stock.code,
+            name: parts[0] || stock.name,
+            price: price,
+            change_pct: changePct,
+          });
+        }
+      }
+      return results;
     } catch (e) { console.error('行情获取失败:', e); return []; }
   },
   async search(keyword) {
     const url = 'https://searchapi.eastmoney.com/api/suggest/get?input=' + encodeURIComponent(keyword) + '&type=14&count=10';
     try {
       const data = await jsonp(url);
-      if (!data || !data.QuotationCodeTable) return [];
-      return data.QuotationCodeTable.filter(item => item.MktNum === 1 || item.MktNum === 0 || item.MktNum === 116)
+      if (!data || !data.QuotationCodeTable || !data.QuotationCodeTable.Data) return [];
+      return data.QuotationCodeTable.Data
+        .filter(item => item.MktNum === 1 || item.MktNum === 0 || item.MktNum === 116)
         .map(item => ({
           code: item.Code,
           name: item.Name,
