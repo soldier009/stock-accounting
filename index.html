@@ -143,7 +143,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
       <div class="card">
         <div class="card-title">持仓明细</div>
         <div v-if="holdings.length===0" class="empty-tip">暂无持仓</div>
-        <div v-for="h in holdings" :key="h.stock_code" class="h-item">
+        <div v-for="h in holdings" :key="h.stock_code" class="h-item" style="cursor:pointer" @click="showStockDetail(h)">
           <div class="h-main">
             <div class="h-info"><span class="sn">{{ h.stock_name }}</span><span class="sc">{{ h.stock_code }}</span></div>
             <span :class="h.float_pnl>=0?'up':'down'">{{ h.float_pnl>=0?'+':'' }}{{ fmt(h.float_pnl) }}</span>
@@ -158,7 +158,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
         </div>
       </div>
       <div class="card">
-        <div class="card-title">交易记录</div>
+        <div class="card-title">全部交易</div>
         <div v-if="transactions.length===0" class="empty-tip">暂无交易</div>
         <div v-for="t in transactions.slice().reverse()" :key="t.id" class="h-item">
           <div class="h-main">
@@ -170,8 +170,42 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
             <div class="dr"><span class="dl">价格</span><span class="dv">{{ t.price>0?'¥'+t.price.toFixed(2):'—' }}</span></div>
             <div class="dr"><span class="dl">手续费</span><span class="dv">¥{{ (t.fee||0).toFixed(2) }}</span></div>
             <div class="dr"><span class="dl">税</span><span class="dv">¥{{ (t.tax||0).toFixed(2) }}</span></div>
-            <div class="dr"><span class="dl">操作</span><span class="dv" style="color:var(--up);cursor:pointer" @click="delTxn(t.id)">删除</span></div>
+            <div class="dr"><span class="dl">操作</span><span class="dv" style="color:var(--up);cursor:pointer" @click.stop="delTxn(t.id)">删除</span></div>
           </div>
+        </div>
+      </div>
+
+      <!-- 股票详情弹窗 -->
+      <div class="overlay" v-if="detailStock" @click.self="detailStock=null">
+        <div class="sheet">
+          <div class="sheet-title">{{ detailStock.stock_name }} ({{ detailStock.stock_code }})</div>
+          <div class="card" style="margin:0 0 12px;padding:12px;background:#f7f8fa">
+            <div class="grid3">
+              <div class="gi"><div class="gl">持仓</div><div class="gv">{{ detailStock.quantity?.toFixed(0) }}股</div></div>
+              <div class="gi"><div class="gl">成本价</div><div class="gv">¥{{ fmt3(detailStock.avg_cost) }}</div></div>
+              <div class="gi"><div class="gl">现价</div><div class="gv" :class="detailStock.float_pnl>=0?'up':'down'">¥{{ detailStock.current_price?.toFixed(2)||'—' }}</div></div>
+              <div class="gi"><div class="gl">市值</div><div class="gv">¥{{ fmt(detailStock.market_value) }}</div></div>
+              <div class="gi"><div class="gl">总成本</div><div class="gv">¥{{ fmt(detailStock.total_cost) }}</div></div>
+              <div class="gi"><div class="gl">浮动盈亏</div><div class="gv" :class="detailStock.float_pnl>=0?'up':'down'">{{ detailStock.float_pnl>=0?'+':'' }}{{ fmt(detailStock.float_pnl) }}</div></div>
+            </div>
+          </div>
+          <div class="sheet-title" style="text-align:left;font-size:15px;margin-top:12px">交易明细</div>
+          <div v-if="!detailTxns.length" class="empty-tip">暂无交易记录</div>
+          <div v-for="t in detailTxns" :key="t.id" class="h-item">
+            <div class="h-main">
+              <div class="h-info"><span class="sc" :style="{background:t.type==='BUY'?'#e8f3ff':t.type==='SELL'?'#fff0f0':'#f0f9eb'}">{{ typeLabel(t.type) }}</span><span style="font-size:12px;color:var(--t3)">{{ t.trade_date }}</span></div>
+              <span class="dv" :class="t.type==='SELL'?'up':t.type==='DIVIDEND'?'up':'down'" style="font-weight:600">{{ t.type==='BUY'?'-¥':'+' }}{{ fmt(t.type==='DIVIDEND'?t.dividend_per_share*t.quantity:t.quantity*t.price) }}</span>
+            </div>
+            <div class="h-det">
+              <div class="dr"><span class="dl">数量</span><span class="dv">{{ t.quantity }}</span></div>
+              <div class="dr"><span class="dl">价格</span><span class="dv">{{ t.price>0?'¥'+t.price.toFixed(2):'—' }}</span></div>
+              <div class="dr"><span class="dl">手续费</span><span class="dv">¥{{ (t.fee||0).toFixed(2) }}</span></div>
+              <div class="dr"><span class="dl">税</span><span class="dv">¥{{ (t.tax||0).toFixed(2) }}</span></div>
+              <div class="dr"><span class="dl">备注</span><span class="dv">{{ t.note||'—' }}</span></div>
+            </div>
+          </div>
+          <button class="btn-primary" @click="addTxnForStock(detailStock)">添加交易</button>
+          <button class="btn-danger" @click="detailStock=null" style="background:#f2f3f5;color:var(--t2)">关闭</button>
         </div>
       </div>
     </div>
@@ -353,6 +387,8 @@ createApp({
     const searchKw = ref('');
     const searchResults = ref([]);
     const autoRefresh = ref(true);
+    const detailStock = ref(null);
+    const detailTxns = ref([]);
     const form = ref({ type:'BUY', stock_code:'', stock_name:'', quantity:0, price:0, fee:0, tax:0, dividend_per_share:0, bonus_ratio:0, trade_date:todayStr(), note:'' });
     let accountId = 1;
     const navChart = ref(null), anaChart = ref(null), ddChart = ref(null);
@@ -402,6 +438,8 @@ createApp({
         accountId = accounts.value[0].id;
       }
       await loadData();
+      // 初始化时自动刷新行情
+      await refresh();
     }
     async function loadData(){
       stocks.value = await DB.getAll('stocks');
@@ -481,13 +519,33 @@ createApp({
       // 重置表单
       form.value={type:'BUY',stock_code:'',stock_name:'',quantity:0,price:0,fee:0,tax:0,dividend_per_share:0,bonus_ratio:0,trade_date:todayStr(),note:''};
       await loadData();
+      // 刷新详情页
+      if(detailStock.value){
+        detailTxns.value = transactions.value.filter(t=>t.stock_code===detailStock.value.stock_code).sort((a,b)=>(a.trade_date||'').localeCompare(b.trade_date||''));
+        const h = holdings.value.find(x=>x.stock_code===detailStock.value.stock_code);
+        if(h) detailStock.value = h;
+      }
       showToast('交易已添加');
     }
     async function delTxn(id){
       if(!confirm('确定删除这笔交易？'))return;
       await Calc.deleteTransaction(id);
       await loadData();
+      if(detailStock.value){
+        detailTxns.value = transactions.value.filter(t=>t.stock_code===detailStock.value.stock_code).sort((a,b)=>(a.trade_date||'').localeCompare(b.trade_date||''));
+        const h = holdings.value.find(x=>x.stock_code===detailStock.value.stock_code);
+        if(h) detailStock.value = h;
+      }
       showToast('已删除');
+    }
+    function showStockDetail(h){
+      detailStock.value = h;
+      detailTxns.value = transactions.value.filter(t=>t.stock_code===h.stock_code).sort((a,b)=>(a.trade_date||'').localeCompare(b.trade_date||''));
+    }
+    function addTxnForStock(h){
+      detailStock.value = null;
+      form.value = { type:'BUY', stock_code:h.stock_code, stock_name:h.stock_name, quantity:0, price:0, fee:0, tax:0, dividend_per_share:0, bonus_ratio:0, trade_date:todayStr(), note:'' };
+      showTxnForm.value = true;
     }
 
     function exportData(){
@@ -523,7 +581,7 @@ createApp({
     });
     onUnmounted(()=>{if(timer)clearInterval(timer)});
 
-    return {tab,accounts,holdings,transactions,stocks,overview,nvData,dd,period,calY,calM,calCells,calData,showTxnForm,showSearch,searchKw,searchResults,autoRefresh,form,toast,periods,weekdays,types,nvSummary,allocation,navChart,anaChart,ddChart,fmt,fmt3,typeLabel,cellBg,prevMonth,nextMonth,refresh,doSearch,pickStock,saveTxn,delTxn,exportData,importData,resetData};
+    return {tab,accounts,holdings,transactions,stocks,overview,nvData,dd,period,calY,calM,calCells,calData,showTxnForm,showSearch,searchKw,searchResults,autoRefresh,form,toast,detailStock,detailTxns,periods,weekdays,types,nvSummary,allocation,navChart,anaChart,ddChart,fmt,fmt3,typeLabel,cellBg,prevMonth,nextMonth,refresh,doSearch,pickStock,saveTxn,delTxn,showStockDetail,addTxnForStock,exportData,importData,resetData};
   }
 }).mount('#app');
 </script>
