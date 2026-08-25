@@ -1,0 +1,18 @@
+{
+  "name": "股票记账",
+  "short_name": "记账",
+  "description": "A股/港股/美股 交易记录、持仓管理、盈亏分析",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f8fa",
+  "theme_color": "#1989fa",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%231989fa'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle' fill='white'%3E%E8%AE%B0%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
