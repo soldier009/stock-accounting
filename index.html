@@ -154,7 +154,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
         </div>
       </div>
       <div class="card">
-        <div class="card-title">持仓明细</div>
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>持仓明细</span>
+          <span style="font-size:14px;color:var(--primary);cursor:pointer" @click="showAddStock">+ 添加持仓</span>
+        </div>
         <div v-if="holdings.length===0" class="empty-tip">暂无持仓</div>
         <div v-for="h in holdings" :key="h.stock_code" class="h-item" style="cursor:pointer" @click="showStockDetail(h)">
           <div class="h-main">
@@ -174,7 +177,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
       <!-- 股票详情弹窗 -->
       <div class="overlay" v-if="detailStock" @click.self="detailStock=null">
         <div class="sheet">
-          <div class="sheet-title">{{ detailStock.stock_name }} ({{ detailStock.stock_code }})</div>
+          <div class="sheet-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>{{ detailStock.stock_name }} ({{ detailStock.stock_code }})</span>
+            <span style="font-size:13px;font-weight:400;display:flex;gap:12px">
+              <span style="color:var(--primary);cursor:pointer" @click="showEditStock(detailStock)">编辑</span>
+              <span style="color:var(--up);cursor:pointer" @click="delStock(detailStock)">删除</span>
+            </span>
+          </div>
           <div class="card" style="margin:0 0 12px;padding:12px;background:#f7f8fa">
             <div class="grid3">
               <div class="gi"><div class="gl">持仓</div><div class="gv">{{ detailStock.quantity?.toFixed(0) }}股</div></div>
@@ -190,7 +199,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
           <div v-for="t in detailTxns" :key="t.id" class="h-item">
             <div class="h-main">
               <div class="h-info"><span class="sc" :style="{background:t.type==='BUY'?'#e8f3ff':t.type==='SELL'?'#fff0f0':'#f0f9eb'}">{{ typeLabel(t.type) }}</span><span style="font-size:12px;color:var(--t3)">{{ t.trade_date }}</span></div>
-              <span class="dv" :class="t.type==='SELL'?'up':t.type==='DIVIDEND'?'up':'down'" style="font-weight:600">{{ t.type==='BUY'?'-¥':'+' }}{{ fmt(t.type==='DIVIDEND'?t.dividend_per_share*t.quantity:t.quantity*t.price) }}</span>
+              <div style="display:flex;align-items:center;gap:10px">
+                <span class="dv" :class="t.type==='SELL'?'up':t.type==='DIVIDEND'?'up':'down'" style="font-weight:600">{{ t.type==='BUY'?'-¥':'+' }}{{ fmt(t.type==='DIVIDEND'?t.dividend_per_share*t.quantity:t.quantity*t.price) }}</span>
+                <span style="font-size:12px;color:var(--primary);cursor:pointer" @click="editTxn(t)">编辑</span>
+                <span style="font-size:12px;color:var(--up);cursor:pointer" @click="delTxn(t.id)">删除</span>
+              </div>
             </div>
             <div class="h-det">
               <div class="dr"><span class="dl">数量</span><span class="dv">{{ t.quantity }}</span></div>
@@ -202,6 +215,30 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
           </div>
           <button class="btn-primary" @click="addTxnForStock(detailStock)">添加交易</button>
           <button class="btn-danger" @click="detailStock=null" style="background:#f2f3f5;color:var(--t2)">关闭</button>
+        </div>
+      </div>
+
+      <!-- 股票编辑弹窗 -->
+      <div class="overlay" v-if="showStockForm" @click.self="showStockForm=false">
+        <div class="sheet">
+          <div class="sheet-title">{{ editingStockId ? '编辑股票' : '添加股票' }}</div>
+          <div class="form-row" v-if="!editingStockId" style="cursor:pointer" @click="showSearch=true">
+            <span class="form-label">搜索</span>
+            <span style="flex:1;color:var(--text)">{{ stockForm.name || '点击搜索股票' }}</span>
+            <span style="color:#c8c9cc">›</span>
+          </div>
+          <div class="form-row"><span class="form-label">代码</span><input class="form-input" v-model="stockForm.code" placeholder="股票代码" :disabled="!!editingStockId" /></div>
+          <div class="form-row"><span class="form-label">名称</span><input class="form-input" v-model="stockForm.name" placeholder="股票名称" /></div>
+          <div class="form-row">
+            <span class="form-label">市场</span>
+            <select class="form-select" v-model="stockForm.market">
+              <option value="A">A股</option>
+              <option value="HK">港股</option>
+              <option value="US">美股</option>
+            </select>
+          </div>
+          <button class="btn-primary" @click="saveStock">{{ editingStockId ? '保存修改' : '添加' }}</button>
+          <button class="btn-danger" @click="showStockForm=false" style="background:#f2f3f5;color:var(--t2)">取消</button>
         </div>
       </div>
     </div>
@@ -269,7 +306,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
   <!-- 交易表单 -->
   <div class="overlay" v-if="showTxnForm" @click.self="showTxnForm=false">
     <div class="sheet">
-      <div class="sheet-title">添加交易</div>
+      <div class="sheet-title">{{ editingTxnId ? '编辑交易' : '添加交易' }}</div>
       <div class="type-tabs">
         <div v-for="t in types" :key="t.v" :class="['type-tab',{active:form.type===t.v}]" @click="form.type=t.v">{{ t.l }}</div>
       </div>
@@ -331,7 +368,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC'
       <div class="fee-info" v-if="form.type==='DIVIDEND'&&form.quantity&&form.dividend_per_share">
         <div class="fee-row total"><span>分红总额</span><span>¥{{ (form.quantity*form.dividend_per_share).toFixed(2) }}</span></div>
       </div>
-      <button class="btn-primary" @click="saveTxn">确认添加</button>
+      <button class="btn-primary" @click="saveTxn">{{ editingTxnId ? '保存修改' : '确认添加' }}</button>
       <button class="btn-danger" @click="showTxnForm=false" style="background:#f2f3f5;color:var(--t2)">取消</button>
     </div>
   </div>
@@ -400,6 +437,10 @@ createApp({
     const showAccForm = ref(false);
     const accForm = ref({ name: '', broker: '', initial_cash: 0 });
     const editingAccId = ref(null);
+    const showStockForm = ref(false);
+    const stockForm = ref({ code: '', name: '', market: 'A' });
+    const editingStockId = ref(null);
+    const editingTxnId = ref(null);
     const form = ref({ type:'BUY', stock_code:'', stock_name:'', quantity:0, price:0, fee:0, tax:0, dividend_per_share:0, bonus_ratio:0, trade_date:todayStr(), note:'' });
     let accountId = 1;
     const navChart = ref(null), anaChart = ref(null), ddChart = ref(null);
@@ -522,11 +563,18 @@ createApp({
       if(f.type==='DIVIDEND'&&(!f.quantity||!f.dividend_per_share)){showToast('请填写持股数量和分红金额');return}
       if(f.type==='BONUS'&&!f.bonus_ratio){showToast('请填写送转比例');return}
       const t={account_id:accountId,stock_code:f.stock_code,stock_name:f.stock_name,type:f.type,quantity:f.quantity||0,price:f.price||0,fee:f.fee||0,tax:f.tax||0,dividend_per_share:f.dividend_per_share||0,bonus_ratio:f.bonus_ratio||0,trade_date:f.trade_date,note:f.note};
-      await Calc.addTransaction(t);
+      if(editingTxnId.value){
+        t.id=editingTxnId.value;
+        await DB.put('transactions',t);
+      } else {
+        await Calc.addTransaction(t);
+      }
       // 确保股票在库
       const exist=stocks.value.find(s=>s.code===f.stock_code);
       if(!exist){await DB.add('stocks',{code:f.stock_code,name:f.stock_name,market:'A',price:0,change_pct:0,updated_at:''})}
+      const isEdit=!!editingTxnId.value;
       showTxnForm.value=false;
+      editingTxnId.value=null;
       // 重置表单
       form.value={type:'BUY',stock_code:'',stock_name:'',quantity:0,price:0,fee:0,tax:0,dividend_per_share:0,bonus_ratio:0,trade_date:todayStr(),note:''};
       await loadData();
@@ -536,7 +584,7 @@ createApp({
         const h = holdings.value.find(x=>x.stock_code===detailStock.value.stock_code);
         if(h) detailStock.value = h;
       }
-      showToast('交易已添加');
+      showToast(isEdit?'交易已更新':'交易已添加');
     }
     async function delTxn(id){
       if(!confirm('确定删除这笔交易？'))return;
@@ -584,6 +632,52 @@ createApp({
       showToast('账户已删除');
     }
 
+    // 股票管理
+    function showAddStock(){ stockForm.value={code:'',name:'',market:'A'}; editingStockId.value=null; showStockForm.value=true; }
+    function showEditStock(h){
+      detailStock.value=null;
+      const s = stocks.value.find(x=>x.code===h.stock_code);
+      if(!s){showToast('股票信息未找到');return}
+      stockForm.value={code:s.code,name:s.name,market:s.market||'A'};
+      editingStockId.value=s.id;
+      showStockForm.value=true;
+    }
+    async function saveStock(){
+      const f=stockForm.value;
+      if(!f.code||!f.name){showToast('请填写代码和名称');return}
+      if(editingStockId.value){
+        const s=await DB.get('stocks',editingStockId.value);
+        s.name=f.name;s.market=f.market;
+        await DB.put('stocks',s);
+        showToast('股票已更新');
+      } else {
+        const exist=stocks.value.find(x=>x.code===f.code);
+        if(exist){showToast('该股票已存在');return}
+        await DB.add('stocks',{code:f.code,name:f.name,market:f.market,price:0,change_pct:0,updated_at:''});
+        showToast('股票已添加');
+      }
+      showStockForm.value=false;
+      await loadAll();
+    }
+    async function delStock(h){
+      if(!confirm(`确定删除 ${h.stock_name}(${h.stock_code})？\n该股票的所有交易记录也会一并删除！`))return;
+      detailStock.value=null;
+      const s=stocks.value.find(x=>x.code===h.stock_code);
+      if(s) await DB.del('stocks',s.id);
+      const txns=transactions.value.filter(t=>t.stock_code===h.stock_code);
+      for(const t of txns) await DB.del('transactions',t.id);
+      await loadAll();
+      showToast('股票已删除');
+    }
+
+    // 交易编辑
+    function editTxn(t){
+      detailStock.value=null;
+      editingTxnId.value=t.id;
+      form.value={type:t.type,stock_code:t.stock_code,stock_name:t.stock_name,quantity:t.quantity,price:t.price,fee:t.fee||0,tax:t.tax||0,dividend_per_share:t.dividend_per_share||0,bonus_ratio:t.bonus_ratio||0,trade_date:t.trade_date,note:t.note||''};
+      showTxnForm.value=true;
+    }
+
     function exportData(){
       const data={accounts:accounts.value,stocks:stocks.value,transactions:transactions.value,exportDate:new Date().toISOString()};
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -619,12 +713,12 @@ createApp({
     onUnmounted(()=>{if(timer)clearInterval(timer)});
 
     // 弹窗打开时锁定背景滚动
-    watch([showTxnForm, showSearch, detailStock, showAccForm], ([a,b,c,d]) => {
-      const open = a || b || c || d;
+    watch([showTxnForm, showSearch, detailStock, showAccForm, showStockForm], ([a,b,c,d,e]) => {
+      const open = a || b || c || d || e;
       document.body.style.overflow = open ? 'hidden' : '';
     });
 
-    return {tab,accounts,holdings,transactions,stocks,overview,nvData,dd,period,calY,calM,calCells,calData,showTxnForm,showSearch,searchKw,searchResults,autoRefresh,form,toast,detailStock,detailTxns,showAccForm,accForm,editingAccId,periods,weekdays,types,nvSummary,allocation,navChart,anaChart,ddChart,fmt,fmt3,typeLabel,cellBg,prevMonth,nextMonth,refresh,doSearch,pickStock,saveTxn,delTxn,showStockDetail,addTxnForStock,showAddAcc,showEditAcc,saveAcc,delAcc,exportData,importData,resetData};
+    return {tab,accounts,holdings,transactions,stocks,overview,nvData,dd,period,calY,calM,calCells,calData,showTxnForm,showSearch,searchKw,searchResults,autoRefresh,form,toast,detailStock,detailTxns,showAccForm,accForm,editingAccId,showStockForm,stockForm,editingStockId,editingTxnId,periods,weekdays,types,nvSummary,allocation,navChart,anaChart,ddChart,fmt,fmt3,typeLabel,cellBg,prevMonth,nextMonth,refresh,doSearch,pickStock,saveTxn,delTxn,showStockDetail,addTxnForStock,showAddAcc,showEditAcc,saveAcc,delAcc,showAddStock,showEditStock,saveStock,delStock,editTxn,exportData,importData,resetData};
   }
 }).mount('#app');
 </script>
