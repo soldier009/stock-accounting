@@ -1,5 +1,5 @@
 // Service Worker for Stock Accounting PWA
-const CACHE_NAME = 'stock-app-v4';
+const CACHE_NAME = 'stock-app-v5';
 const CACHE_URLS = [
   './',
   './index.html',
